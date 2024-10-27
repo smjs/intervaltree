@@ -253,12 +253,30 @@ public:
         return result;
     }
 
+    std::vector<Value> findOverlappingValues(const Scalar& start, const Scalar& stop) const {
+        std::vector<Value> result;
+        visit_overlapping(start, stop,
+                          [&](const interval& interval) {
+                            result.emplace_back(interval.value);
+                          });
+        return result;
+    }
+
     interval_vector findContained(const Scalar& start, const Scalar& stop) const {
         interval_vector result;
         visit_contained(start, stop,
                         [&](const interval& interval) { 
                           result.push_back(interval); 
                         });
+        return result;
+    }
+
+    std::vector<Value> findContainedValues(const Scalar& start, const Scalar& stop) const {
+        std::vector<Value> result;
+        visit_contained(start, stop,
+                          [&](const interval& interval) {
+                            result.emplace_back(interval.value);
+                          });
         return result;
     }
 
