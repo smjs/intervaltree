@@ -46,16 +46,29 @@ public:
     typedef Interval<Scalar, Value> interval;
     typedef std::vector<interval> interval_vector;
 
-
     struct IntervalStartCmp {
         bool operator()(const interval& a, const interval& b) {
             return a.start < b.start;
+        }
+
+        bool operator() (const interval & left, Scalar right) {
+            return left.start < right;
+        }
+    
+        bool operator() (Scalar left, const interval & right) {
+            return left < right.start;
         }
     };
 
     struct IntervalStopCmp {
         bool operator()(const interval& a, const interval& b) {
             return a.stop < b.stop;
+        }
+    };
+
+    struct IntervalWidthCmp {
+        bool operator()(const interval& a, const interval& b) {
+            return a.stop-a.start+1 < b.stop-b.start+1;
         }
     };
 
@@ -100,13 +113,32 @@ public:
       , right(nullptr)
     {
         --depth;
+        Scalar minStart;
         const auto minmaxStop = std::minmax_element(ivals.begin(), ivals.end(), 
                                                     IntervalStopCmp());
-        const auto minmaxStart = std::minmax_element(ivals.begin(), ivals.end(), 
-                                                     IntervalStartCmp());
-        if (!ivals.empty()) {
-            center = (minmaxStart.first->start + minmaxStop.second->stop) / 2;
+
+        // This if condition is a proxy for top of tree / first time in
+        if (leftextent == 0 && rightextent == 0) {
+          const auto minmaxStart = std::minmax_element(ivals.begin(), ivals.end(), 
+                                                       IntervalStartCmp());
+          minStart = minmaxStart.first->start;
+        } else {
+          // intervals has been sorted on start by now, so can just get from first element
+          minStart = ivals.begin()->start;
         }
+/*
+        const auto maxWidth = std::max_element(ivals.begin(), ivals.end(),
+                                                     IntervalWidthCmp());
+*/
+/* SMJS added maxStop to avoid std::max_element call below
+*/
+        Scalar maxStop = minmaxStop.second->stop;
+        if (!ivals.empty()) {
+//            center = (minmaxStart.first->start + minmaxStop.second->stop) / 2;
+            center = (minStart + minmaxStop.second->stop) / 2;
+
+        }
+
         if (leftextent == 0 && rightextent == 0) {
             // sort intervals by start
             std::sort(ivals.begin(), ivals.end(), IntervalStartCmp());
@@ -114,7 +146,9 @@ public:
             assert(std::is_sorted(ivals.begin(), ivals.end(), IntervalStartCmp()));
         }
         if (depth == 0 || (ivals.size() < minbucket && ivals.size() < maxbucket)) {
+            /* SMJS Already sorted above 
             std::sort(ivals.begin(), ivals.end(), IntervalStartCmp());
+            */
             intervals = std::move(ivals);
             assert(is_valid().first);
             return;
@@ -127,8 +161,11 @@ public:
                 rightp = rightextent;
             } else {
                 leftp = ivals.front().start;
+/* SMJS Already know the max from above
                 rightp = std::max_element(ivals.begin(), ivals.end(),
                                           IntervalStopCmp())->stop;
+*/
+                rightp = maxStop;
             }
 
             interval_vector lefts;
@@ -224,6 +261,7 @@ public:
                         });
         return result;
     }
+
     bool empty() const {
         if (left && !left->empty()) {
             return false;
@@ -256,12 +294,12 @@ public:
                 x.first  = std::min(x.first,  interval.start);
                 x.second = std::max(x.second, interval.stop);
             }
-                                                                };
-                                            Extent extent;
+        };
+        Extent extent;
 
         visit_all([&](const interval & interval) { extent(interval); });
         return extent.x;
-                                            }
+    }
 
     // Check all constraints.
     // If first is false, second is invalid.
